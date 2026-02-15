@@ -267,7 +267,7 @@
     <div id="screen-quests" class="screen">
         <div class="quest-box" style="background: #2c3e50; border-color: var(--p-blue);">
             <strong>🕒 自動掛機狀態</strong><br>
-            目前每分鐘收益：💰 10 金幣 <br>
+            目前每分鐘收益：💰 1 金幣 <br>
             <small id="lastSaveMsg">上次同步時間：載入中...</small>
         </div>
         <h3>每日任務 (手動領取)</h3>
@@ -438,7 +438,7 @@ const POKE_BASE = {
             if(user.lastTime && now > user.lastTime) {
                 const elapsedMins = Math.floor((now - user.lastTime) / 60000);
                 if(elapsedMins > 0) {
-                    const goldEarned = elapsedMins * 10;
+                    const goldEarned = elapsedMins * 1;
                     user.gold += goldEarned;
                     user.team.concat(user.storage).forEach(p => { 
                         if(p) p.hp = Math.min(p.hpMax, p.hp + elapsedMins * 10); 
@@ -555,8 +555,7 @@ const POKE_BASE = {
         const rLv = parseInt(document.getElementById('rocketLv').value);
         
         // 1. 定義火箭隊可能會出的寶可夢
-        const rocketPokes = ["烈空坐", "夢幻", "超夢", "帝牙盧卡", "帕路奇亞", "騎拉帝納", "皮卡丘"]; 
-        
+        const rocketPokes = ["阿爾宙斯","無極汰那","奈克洛茲瑪","烈空坐","帝牙盧卡","帕路奇亞","騎拉帝納","蓋歐卡","固拉多","萊希拉姆","捷克羅姆","酋雷姆","超夢","露奈雅拉"];
         // 2. 隨機抽一隻
         const randomSpecies = rocketPokes[Math.floor(Math.random() * rocketPokes.length)];
         
@@ -915,4 +914,5 @@ function healAll() {
         init();
     </script>
 </body>
+
 </html>
