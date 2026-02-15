@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html>     //對的版本
 <html>
 <head>
     <title>Pokémon Masters: Ultimate Edition</title>
@@ -13,6 +13,39 @@
         .screen { display: none; padding: 20px; max-width: 1000px; margin: auto; animation: fadeIn 0.3s; }
         .active-screen { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* --- 豪華拉霸機專用樣式 (全功能移植) --- */
+
+.slot-machine-container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            margin-top: 20px;
+        }
+        .reel-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 30px; perspective: 500px; }
+        .slot {
+            width: 100px; height: 120px; background: #eee; border-radius: 10px; 
+            overflow: hidden; position: relative; box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+            border: 3px solid #ffcc00;
+        }
+        .reel-list { list-style: none; padding: 0; margin: 0; position: absolute; top: 0; left: 0; width: 100%; }
+        .reel-list li {
+            height: 120px; display: flex; align-items: center; justify-content: center;
+            font-size: 60px; color: #333; background: white; border-bottom: 1px solid #ddd;
+        }
+        .spin-button {
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            color: white; border: none; padding: 15px 40px; font-size: 1.8em;
+            font-weight: bold; border-radius: 10px; cursor: pointer; transition: 0.3s;
+        }
+        .spin-button:disabled { background: #888; cursor: not-allowed; }
+        .bet-input { width: 80px; padding: 10px; font-size: 1.2em; border-radius: 5px; text-align: center; background: #333; color: white; border: 1px solid #ddd; }
+        .result-text { margin-top: 30px; font-size: 2em; font-weight: bold; color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.7); }
+
+
+        /* --- 原有樣式 (省略部分以節省篇幅，內容皆保持不變) --- */
 
         .adventure-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
         .adventure-card { background: #2c3e50; border: 2px solid #34495e; border-radius: 15px; padding: 30px; text-align: center; cursor: pointer; transition: 0.3s; }
@@ -162,8 +195,9 @@
         <div class="nav-item" onclick="showScreen('team')">🛡️ 隊伍</div>
         <div class="nav-item" onclick="showScreen('nurture')">🏠 倉庫</div>
         <div class="nav-item" onclick="showScreen('battle_map')">⚔️ 冒險</div>
-        <div class="nav-item" onclick="showScreen('quests')">📋 任務</div>
         <div class="nav-item" onclick="showScreen('shop')">💰 商店</div>
+        <div class="nav-item" onclick="showScreen('casino')">🎰 娛樂場</div> 
+        <div class="nav-item" onclick="showScreen('quests')">📋 任務</div>
         <div class="nav-item" onclick="showScreen('dex')">📖 圖鑑</div>
     </div>
 
@@ -186,6 +220,29 @@
 
         <div class="slot-container" id="teamSlots"></div>
     </div>
+
+
+<div id="screen-casino" class="screen">
+        <div class="slot-machine-container">
+            <h1>💰 豪華拉霸機 💰</h1>
+            <p style="font-size: 1.5em;">你的金幣: $<span id="casino-balance">1000</span></p>
+
+            <div class="reel-container">
+                <div class="slot" id="slot1"><ul class="reel-list"></ul></div>
+                <div class="slot" id="slot2"><ul class="reel-list"></ul></div>
+                <div class="slot" id="slot3"><ul class="reel-list"></ul></div>
+            </div>
+
+            <div>
+                下注金額: <input type="number" id="betAmount" class="bet-input" value="10" min="1">
+                <button class="spin-button" id="btn-spin" onclick="spinCasino()">拉桿！</button>
+            </div>
+            
+            <p class="result-text" id="casino-result">試試你的手氣吧！</p>
+        </div>
+    </div>
+
+
 
     <div id="screen-nurture" class="screen">
         <h3>寶可夢倉庫 <span id="storageCount"></span></h3>
@@ -458,6 +515,139 @@ const POKE_BASE = {
             updateUI();
         }
 
+
+// --- 1. 核心資源系統 ---
+        // 這是唯一的金幣來源
+        let resGold = 1000;
+        let resFood = 10;
+        let resStone = 0;
+
+        function updateUI() {
+            // 同步頂部資源條
+            document.getElementById('resGold').innerText = resGold;
+            // 同步拉霸機內部的餘額顯示
+            const casinoBal = document.getElementById('casinoBalance');
+            if(casinoBal) casinoBal.innerText = resGold;
+        }
+
+        // --- 2. 豪華拉霸機核心邏輯 (完整移植) ---
+        const SYMBOLS_RAW = ['🍒', '🍋', '🔔', '💎', '7️⃣'];
+        const SYMBOLS_WEIGHTED = ['🍒','🍒','🍒','🍒','🍒','🍒','🍋','🍋','🍋','🍋','🍋','🔔','🔔','🔔','💎','💎','7️⃣'];
+        const WIN_MULTIPLIER = { '🍒': 2, '🍋': 3, '🔔': 5, '💎': 10, '7️⃣': 20 };
+        const SYMBOL_HEIGHT = 120;
+        const SPIN_DURATION_BASE = 2000;
+        let isSpinning = false;
+
+        // 音效 (請確保檔案路徑正確，或使用 Base64)
+        const spinSound = new Audio('spin.mp3');
+        const winSound = new Audio('win.mp3');
+        const loseSound = new Audio('lose.mp3');
+
+        function createReelList(reelId) {
+            const ul = document.querySelector(`#${reelId} .reel-list`);
+            ul.innerHTML = '';
+            for (let i = 0; i < 30; i++) {
+                const li = document.createElement('li');
+                li.innerText = SYMBOLS_RAW[Math.floor(Math.random() * SYMBOLS_RAW.length)];
+                ul.appendChild(li);
+            }
+        }
+
+        function initCasino() {
+            for (let i = 1; i <= 3; i++) createReelList(`slot${i}`);
+            document.getElementById('casino-balance').innerText = resGold;
+        }
+
+        async function spinCasino() {
+            if (isSpinning) return;
+
+            const betInput = document.getElementById('betAmount');
+            let bet = parseInt(betInput.value);
+
+            if (isNaN(bet) || bet <= 0) {
+                document.getElementById('casino-result').innerText = "請輸入有效金額！";
+                return;
+            }
+            if (bet > resGold) {
+                document.getElementById('casino-result').innerText = "金幣不足！快去冒險賺錢吧！";
+                return;
+            }
+
+            isSpinning = true;
+            document.getElementById('btn-spin').disabled = true;
+            resGold -= bet; // 扣除寶可夢金幣
+            updateUI(); // 更新全域資源條
+            document.getElementById('casino-balance').innerText = resGold;
+            document.getElementById('casino-result').innerText = "旋轉中...";
+            
+            try { spinSound.play(); } catch(e){}
+
+            const reels = [
+                document.querySelector('#slot1 .reel-list'),
+                document.querySelector('#slot2 .reel-list'),
+                document.querySelector('#slot3 .reel-list')
+            ];
+
+            const finalSymbols = [];
+            const spinPromises = reels.map((reel, index) => {
+                createReelList(`slot${index + 1}`);
+                reel.style.transition = 'none';
+                reel.style.transform = 'translateY(0)';
+                void reel.offsetWidth; 
+
+                const targetSymbol = SYMBOLS_WEIGHTED[Math.floor(Math.random() * SYMBOLS_WEIGHTED.length)];
+                finalSymbols.push(targetSymbol);
+
+                const finalLi = document.createElement('li');
+                finalLi.innerText = targetSymbol;
+                reel.appendChild(finalLi);
+
+                const scrollDist = (reel.children.length - 2) * SYMBOL_HEIGHT;
+                const duration = SPIN_DURATION_BASE + index * 500;
+
+                reel.style.transition = `transform ${duration}ms cubic-bezier(0.25, 0.1, 0.25, 1)`;
+                reel.style.transform = `translateY(-${scrollDist}px)`;
+
+                return new Promise(resolve => setTimeout(resolve, duration));
+            });
+
+            await Promise.all(spinPromises);
+            
+            // 結算
+            const [s1, s2, s3] = finalSymbols;
+            if (s1 === s2 && s2 === s3) {
+                let win = bet * WIN_MULTIPLIER[s1];
+                resGold += win;
+                document.getElementById('casino-result').innerText = `🎉 大獎！贏得 $${win}！`;
+                try { winSound.play(); } catch(e){}
+            } else {
+                document.getElementById('casino-result').innerText = "銘謝惠顧，再玩一次？";
+                try { loseSound.play(); } catch(e){}
+            }
+
+            isSpinning = false;
+            document.getElementById('btn-spin').disabled = false;
+            document.getElementById('casino-balance').innerText = resGold;
+            updateUI();
+        }
+
+        // --- 3. 介面切換邏輯 ---
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+            document.getElementById('screen-' + id).classList.add('active-screen');
+            if(id === 'casino') initCasino();
+        }
+
+        // 更新資源顯示的函式 (整合寶可夢原有邏輯)
+        function updateUI() {
+            document.getElementById('resGold').innerText = resGold;
+            // ... 更新其他資源 ...
+        }
+
+        window.onload = () => {
+            // initGame(); // 啟動寶可夢初始化
+            updateUI();
+        };
         function save() {
             user.lastTime = Date.now();
             localStorage.setItem('poke_master_save', JSON.stringify(user));
@@ -555,7 +745,8 @@ const POKE_BASE = {
         const rLv = parseInt(document.getElementById('rocketLv').value);
         
         // 1. 定義火箭隊可能會出的寶可夢
-        const rocketPokes = ["阿爾宙斯","無極汰那","奈克洛茲瑪","烈空坐","帝牙盧卡","帕路奇亞","騎拉帝納","蓋歐卡","固拉多","萊希拉姆","捷克羅姆","酋雷姆","超夢","露奈雅拉"];
+        const rocketPokes = ["阿爾宙斯","無極汰那","奈克洛茲瑪","烈空坐","帝牙盧卡","帕路奇亞","騎拉帝納","蓋歐卡","固拉多","萊希拉姆","捷克羅姆","酋雷姆","超夢","露奈雅拉"]; 
+        
         // 2. 隨機抽一隻
         const randomSpecies = rocketPokes[Math.floor(Math.random() * rocketPokes.length)];
         
@@ -914,5 +1105,4 @@ function healAll() {
         init();
     </script>
 </body>
-
 </html>
